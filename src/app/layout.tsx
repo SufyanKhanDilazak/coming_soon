@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
-
 import './globals.css';
-import AuroraStarsBackground from './components/AuroraStarsBackground';
+import BackgroundVideo from './components/AuroraStarsBackground'; // Adjust path as needed
 
 const inter = Inter({
   subsets: ['latin'],
@@ -27,25 +26,24 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* Preload light and dark videos */}
-        <link rel="preload" href="/sky.webm" as="video" type="video/webm" />
-        <link rel="preload" href="/sky.mp4" as="video" type="video/mp4" />
-        <link rel="preload" href="/3d.webm" as="video" type="video/webm" />
-        <link rel="preload" href="/3d.mp4" as="video" type="video/mp4" />
-        <link rel="preload" href="/sky-poster.jpg" as="image" />
-        <link rel="preload" href="/3d-poster.jpg" as="image" />
+        {/* Only preload the videos we actually use */}
+        <link rel="preload" href="/4d.mp4" as="video" type="video/mp4" />
+        <link rel="preload" href="/4dm.mp4" as="video" type="video/mp4" />
       </head>
-      <body className="min-h-screen flex flex-col">
-
-                <AuroraStarsBackground />
-                <div className="relative z-10 flex flex-col min-h-screen">
-                  <main className="flex-1">{children}</main>
-                </div>
-          
+      <body className="min-h-screen">
+        <BackgroundVideo>
+          <main className="relative z-10 min-h-screen">
+            {children}
+          </main>
+        </BackgroundVideo>
       </body>
     </html>
   );
