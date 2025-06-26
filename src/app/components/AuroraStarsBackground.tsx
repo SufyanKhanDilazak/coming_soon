@@ -1,24 +1,29 @@
 "use client";
 
+import { useTheme } from './theme-context';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import React from 'react';
 
-interface VideoBackgroundProps {
+interface AuroraStarsBackgroundProps {
   children?: React.ReactNode;
 }
 
-// Video asset configuration
-const VIDEO_ASSET = {
-  video: '/3d.mp4',
-  poster: '/3d-poster.jpg'
+// Pre-define video assets for better performance
+const VIDEO_ASSETS = {
+  dark: { video: '/3d.mp4', poster: '/3d-poster.jpg' },
+  light: { video: '/sky.mp4', poster: '/sky-poster.jpg' }
 } as const;
 
-export default function VideoBackground({ children }: VideoBackgroundProps) {
+export default function AuroraStarsBackground({ children }: AuroraStarsBackgroundProps) {
+  const { isDarkMode, isThemeLoaded } = useTheme();
   const [isClient, setIsClient] = useState(false);
   const [userInteracted, setUserInteracted] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
+  const [videoReady, setVideoReady] = useState({ light: false, dark: false });
+  const [activeVideo, setActiveVideo] = useState<'light' | 'dark'>('light');
   
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const lightVideoRef = useRef<HTMLVideoElement>(null);
+  const darkVideoRef = useRef<HTMLVideoElement>(null);
+  const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Detect browser capabilities
   const isSafariOrIOS = useCallback(() => {
@@ -56,7 +61,7 @@ export default function VideoBackground({ children }: VideoBackgroundProps) {
   }, [isSafariOrIOS]);
 
   // Optimized video loading function
-  const loadVideo = useCallback(async () => {
+  const loadVideo = useCallback(async (videoRef: React.RefObject<HTMLVideoElement | null>, type: 'light' | 'dark') => {
     const video = videoRef.current;
     if (!video || !userInteracted) return;
 
@@ -97,19 +102,69 @@ export default function VideoBackground({ children }: VideoBackgroundProps) {
         });
       }
 
-      setVideoReady(true);
+      setVideoReady(prev => ({ ...prev, [type]: true }));
     } catch {
       // Fallback to poster on error
-      setVideoReady(false);
+      setVideoReady(prev => ({ ...prev, [type]: false }));
     }
   }, [userInteracted]);
 
-  // Initialize video when user interacts
+  // Initialize both videos when user interacts
   useEffect(() => {
-    if (!isClient || !userInteracted) return;
+    if (!isClient || !userInteracted || !isThemeLoaded) return;
 
-    loadVideo();
-  }, [isClient, userInteracted, loadVideo]);
+    const initializeVideos = async () => {
+      // Load both videos in parallel
+      await Promise.allSettled([
+        loadVideo(lightVideoRef, 'light'),
+        loadVideo(darkVideoRef, 'dark')
+      ]);
+    };
+
+    initializeVideos();
+  }, [isClient, userInteracted, isThemeLoaded, loadVideo]);
+
+  // Handle theme switching with smooth transitions
+  useEffect(() => {
+    if (!isThemeLoaded || !userInteracted) return;
+
+    const newActiveVideo = isDarkMode ? 'dark' : 'light';
+    
+    if (newActiveVideo !== activeVideo) {
+      // Clear any pending transitions
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+      }
+
+      // Smooth transition logic
+      const currentRef = activeVideo === 'light' ? lightVideoRef : darkVideoRef;
+      const nextRef = newActiveVideo === 'light' ? lightVideoRef : darkVideoRef;
+
+      if (currentRef.current) {
+        currentRef.current.style.opacity = '0';
+      }
+
+      if (nextRef.current && videoReady[newActiveVideo]) {
+        nextRef.current.style.opacity = '1';
+        nextRef.current.currentTime = 0;
+        nextRef.current.play().catch(() => {});
+      }
+
+      // Update active video after transition
+      transitionTimeoutRef.current = setTimeout(() => {
+        setActiveVideo(newActiveVideo);
+      }, 300);
+    }
+  }, [isDarkMode, isThemeLoaded, userInteracted, activeVideo, videoReady]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Common video properties
   const videoProps = {
@@ -140,8 +195,8 @@ export default function VideoBackground({ children }: VideoBackgroundProps) {
           style={{ 
             position: 'fixed', 
             inset: 0, 
-            backgroundColor: 'black',
-            backgroundImage: `url(${VIDEO_ASSET.poster})`,
+            backgroundColor: 'white',
+            backgroundImage: `url(${VIDEO_ASSETS.light.poster})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             zIndex: -1 
@@ -156,15 +211,27 @@ export default function VideoBackground({ children }: VideoBackgroundProps) {
     <>
       {/* Fixed video container - completely separate from content flow */}
       <div style={{ position: 'fixed', inset: 0, zIndex: -1, overflow: 'hidden' }}>
-        {/* Single video */}
+        {/* Light theme video */}
         <video
-          ref={videoRef}
-          src={VIDEO_ASSET.video}
-          poster={VIDEO_ASSET.poster}
+          ref={lightVideoRef}
+          src={VIDEO_ASSETS.light.video}
+          poster={VIDEO_ASSETS.light.poster}
           {...videoProps}
           style={{
             ...videoStyle,
-            opacity: videoReady && userInteracted ? 1 : 0,
+            opacity: !isDarkMode && videoReady.light && userInteracted ? 1 : 0,
+          }}
+        />
+        
+        {/* Dark theme video */}
+        <video
+          ref={darkVideoRef}
+          src={VIDEO_ASSETS.dark.video}
+          poster={VIDEO_ASSETS.dark.poster}
+          {...videoProps}
+          style={{
+            ...videoStyle,
+            opacity: isDarkMode && videoReady.dark && userInteracted ? 1 : 0,
           }}
         />
         
@@ -173,10 +240,10 @@ export default function VideoBackground({ children }: VideoBackgroundProps) {
           style={{
             position: 'absolute',
             inset: 0,
-            backgroundImage: `url(${VIDEO_ASSET.poster})`,
+            backgroundImage: `url(${isDarkMode ? VIDEO_ASSETS.dark.poster : VIDEO_ASSETS.light.poster})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            opacity: !videoReady || !userInteracted ? 1 : 0,
+            opacity: (!videoReady.light && !isDarkMode) || (!videoReady.dark && isDarkMode) || !userInteracted ? 1 : 0,
             transition: 'opacity 0.3s ease-in-out',
             zIndex: -1,
           }}
