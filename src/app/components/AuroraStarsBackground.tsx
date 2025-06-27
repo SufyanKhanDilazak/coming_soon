@@ -10,7 +10,7 @@ interface BackgroundVideoProps {
 // Video assets for different screen sizes
 const VIDEO_ASSETS = {
   desktop: '/4d.mp4',
-  mobile: '/mp6.mp4',
+  mobile: '/mp6.mp4', // Updated to correct filename
   poster: '/4d-poster.jpg'
 } as const;
 
@@ -157,7 +157,7 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
     controls: false,
   };
 
-  // Responsive video styles
+  // Responsive video styles - FIXED MOBILE ZOOM ISSUE
   const getVideoStyle = (): React.CSSProperties => {
     const baseStyle: React.CSSProperties = {
       position: 'absolute',
@@ -170,13 +170,13 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
     };
 
     if (isMobile) {
-      // On mobile, use cover for mobile-optimized video
+      // REMOVED objectFit: 'cover' for mobile to prevent zooming
       return {
         ...baseStyle,
-        objectFit: 'cover',
+        objectFit: 'contain', // Changed from 'cover' to 'contain' to show full video
       };
     } else {
-      // On desktop, use cover for desktop video
+      // Keep cover for desktop
       return {
         ...baseStyle,
         objectFit: 'cover',
