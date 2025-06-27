@@ -10,7 +10,7 @@ interface BackgroundVideoProps {
 // Video assets for different screen sizes
 const VIDEO_ASSETS = {
   desktop: '/4d.mp4',
-  mobile: '/mp5.mp4',
+  mobile: '/mp6.mp4',
   poster: '/4d-poster.jpg'
 } as const;
 
