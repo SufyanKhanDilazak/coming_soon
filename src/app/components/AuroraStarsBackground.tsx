@@ -10,8 +10,9 @@ interface BackgroundVideoProps {
 // Video assets for different screen sizes
 const VIDEO_ASSETS = {
   desktop: '/4d.mp4',
-  mobile: '/mp6.mp4', // Updated to correct filename
-  poster: '/4d-poster.jpg'
+  mobile: '/mp6.mp4',
+  posterDesktop: '/4d-poster.jpg',
+  posterMobile: '/mp6-poster.jpg'
 } as const;
 
 export default function BackgroundVideo({ children }: BackgroundVideoProps) {
@@ -157,7 +158,7 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
     controls: false,
   };
 
-  // Responsive video styles - FIXED MOBILE ZOOM ISSUE
+  // Responsive video styles
   const getVideoStyle = (): React.CSSProperties => {
     const baseStyle: React.CSSProperties = {
       position: 'absolute',
@@ -170,10 +171,10 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
     };
 
     if (isMobile) {
-      // REMOVED objectFit: 'cover' for mobile to prevent zooming
+      // Use contain for mobile to prevent zooming
       return {
         ...baseStyle,
-        objectFit: 'contain', // Changed from 'cover' to 'contain' to show full video
+        objectFit: 'contain',
       };
     } else {
       // Keep cover for desktop
@@ -182,6 +183,11 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
         objectFit: 'cover',
       };
     }
+  };
+
+  // Get appropriate poster image based on device
+  const getPosterImage = () => {
+    return isMobile ? VIDEO_ASSETS.posterMobile : VIDEO_ASSETS.posterDesktop;
   };
 
   // SSR fallback
@@ -194,7 +200,7 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
             position: 'fixed', 
             inset: 0, 
             backgroundColor: '#000',
-            backgroundImage: `url(${VIDEO_ASSETS.poster})`,
+            backgroundImage: `url(${VIDEO_ASSETS.posterDesktop})`, // Default to desktop poster for SSR
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             zIndex: -1 
@@ -213,7 +219,7 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
         <video
           ref={isMobile ? null : videoRef}
           src={VIDEO_ASSETS.desktop}
-          poster={VIDEO_ASSETS.poster}
+          poster={VIDEO_ASSETS.posterDesktop}
           {...videoProps}
           style={{
             ...getVideoStyle(),
@@ -226,7 +232,7 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
         <video
           ref={isMobile ? videoRef : null}
           src={VIDEO_ASSETS.mobile}
-          poster={VIDEO_ASSETS.poster}
+          poster={VIDEO_ASSETS.posterMobile}
           {...videoProps}
           style={{
             ...getVideoStyle(),
@@ -235,13 +241,13 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
           }}
         />
         
-        {/* Fallback background */}
+        {/* Fallback background - uses appropriate poster based on device */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            backgroundImage: `url(${VIDEO_ASSETS.poster})`,
-            backgroundSize: 'cover',
+            backgroundImage: `url(${getPosterImage()})`,
+            backgroundSize: isMobile ? 'contain' : 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
             backgroundColor: '#000',
