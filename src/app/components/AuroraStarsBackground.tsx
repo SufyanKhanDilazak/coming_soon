@@ -7,10 +7,11 @@ interface BackgroundVideoProps {
   children?: React.ReactNode;
 }
 
-// Pre-define video assets for better performance
+// Video assets for different screen sizes
 const VIDEO_ASSETS = {
-  desktop: { video: '/4d.mp4', poster: '/4d-poster.jpg' },
-  mobile: { video: '/4dm.mp4', poster: '/4dm-poster.jpg' }
+  desktop: '/4d.mp4',
+  mobile: '/mp5.mp4',
+  poster: '/4d-poster.jpg'
 } as const;
 
 export default function BackgroundVideo({ children }: BackgroundVideoProps) {
@@ -22,6 +23,12 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Detect mobile devices
+  const detectMobile = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }, []);
+
   // Detect browser capabilities
   const isSafariOrIOS = useCallback(() => {
     if (typeof navigator === 'undefined') return false;
@@ -29,20 +36,24 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
     return /iPad|iPhone|iPod|Safari/i.test(ua) && !/Chrome/i.test(ua);
   }, []);
 
-  // Mobile detection function
-  const checkMobile = useCallback(() => {
-    if (typeof navigator === 'undefined' || typeof window === 'undefined') return false;
-    const userAgent = navigator.userAgent.toLowerCase();
-    return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent) || 
-           window.innerWidth <= 768;
-  }, []);
+  // Handle resize events
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const handleResize = () => {
+      setIsMobile(detectMobile());
+    };
+    
+    handleResize(); // Initial check
+    window.addEventListener('resize', handleResize);
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isClient, detectMobile]);
 
   // Client-side initialization with interaction detection
   useEffect(() => {
     setIsClient(true);
-    
-    // Set mobile detection
-    setIsMobile(checkMobile());
+    setIsMobile(detectMobile());
     
     // Check if user already interacted
     const hasInteracted = sessionStorage.getItem('videoInteraction') === 'true';
@@ -66,7 +77,7 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
         document.removeEventListener('click', handleInteraction);
       };
     }
-  }, [isSafariOrIOS, checkMobile]);
+  }, [isSafariOrIOS, detectMobile]);
 
   // Optimized video loading function
   const loadVideo = useCallback(async (videoRef: React.RefObject<HTMLVideoElement | null>) => {
@@ -128,18 +139,6 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
     initializeVideo();
   }, [isClient, userInteracted, loadVideo]);
 
-  // Handle window resize for mobile detection
-  useEffect(() => {
-    if (!isClient) return;
-
-    const handleResize = () => {
-      setIsMobile(checkMobile());
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [isClient, checkMobile]);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -148,9 +147,6 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
       }
     };
   }, []);
-
-  // Get current video assets based on mobile detection
-  const currentAssets = isMobile ? VIDEO_ASSETS.mobile : VIDEO_ASSETS.desktop;
 
   // Common video properties
   const videoProps = {
@@ -161,15 +157,31 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
     controls: false,
   };
 
-  const videoStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    pointerEvents: 'none',
-    transition: 'opacity 0.5s ease-in-out',
+  // Responsive video styles
+  const getVideoStyle = (): React.CSSProperties => {
+    const baseStyle: React.CSSProperties = {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      pointerEvents: 'none',
+      transition: 'opacity 0.5s ease-in-out',
+    };
+
+    if (isMobile) {
+      // On mobile, use cover for mobile-optimized video
+      return {
+        ...baseStyle,
+        objectFit: 'cover',
+      };
+    } else {
+      // On desktop, use cover for desktop video
+      return {
+        ...baseStyle,
+        objectFit: 'cover',
+      };
+    }
   };
 
   // SSR fallback
@@ -182,7 +194,7 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
             position: 'fixed', 
             inset: 0, 
             backgroundColor: '#000',
-            backgroundImage: `url(${VIDEO_ASSETS.desktop.poster})`,
+            backgroundImage: `url(${VIDEO_ASSETS.poster})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             zIndex: -1 
@@ -196,16 +208,30 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
   return (
     <>
       {/* Fixed video container - completely separate from content flow */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: -1, overflow: 'hidden' }}>
-        {/* Main video */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: -1, overflow: 'hidden', backgroundColor: '#000' }}>
+        {/* Desktop video (hidden on mobile) */}
         <video
-          ref={videoRef}
-          src={currentAssets.video}
-          poster={currentAssets.poster}
+          ref={isMobile ? null : videoRef}
+          src={VIDEO_ASSETS.desktop}
+          poster={VIDEO_ASSETS.poster}
           {...videoProps}
           style={{
-            ...videoStyle,
-            opacity: videoReady && userInteracted ? 1 : 0,
+            ...getVideoStyle(),
+            opacity: videoReady && userInteracted && !isMobile ? 1 : 0,
+            display: isMobile ? 'none' : 'block',
+          }}
+        />
+
+        {/* Mobile video (hidden on desktop) */}
+        <video
+          ref={isMobile ? videoRef : null}
+          src={VIDEO_ASSETS.mobile}
+          poster={VIDEO_ASSETS.poster}
+          {...videoProps}
+          style={{
+            ...getVideoStyle(),
+            opacity: videoReady && userInteracted && isMobile ? 1 : 0,
+            display: isMobile ? 'block' : 'none',
           }}
         />
         
@@ -214,9 +240,11 @@ export default function BackgroundVideo({ children }: BackgroundVideoProps) {
           style={{
             position: 'absolute',
             inset: 0,
-            backgroundImage: `url(${currentAssets.poster})`,
+            backgroundImage: `url(${VIDEO_ASSETS.poster})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            backgroundColor: '#000',
             opacity: !videoReady || !userInteracted ? 1 : 0,
             transition: 'opacity 0.5s ease-in-out',
             zIndex: -1,
